@@ -1,0 +1,155 @@
+---
+title: "Dissolved Oxygen Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+library(dplyr)
+library(flexdashboard)
+source("R/average_DO.R")
+source("R/download_DO.R")
+source("R/marmap_plot.R")
+gre_url="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png"
+ora_url="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-orange.png"
+gol_url="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-gold.png"
+red_url="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png"
+greenIcon=leaflet::makeIcon(gre_url,iconWidth=25,iconAnchorX = 12.5,iconAnchorY=41)
+orangeIcon=leaflet::makeIcon(ora_url,iconWidth=25,iconAnchorX = 12.5,iconAnchorY=41)
+goldIcon=leaflet::makeIcon(gol_url,iconWidth=25,iconAnchorX = 12.5,iconAnchorY=41)
+redIcon=leaflet::makeIcon(red_url,iconWidth=25,iconAnchorX = 12.5,iconAnchorY=41)
+```
+
+Column {.sidebar}
+-----------------------------------------------------------------------
+Dissolved oxygen data filters:
+
+```{r}
+shiny::dateInput(
+  inputId="startDate",
+  label="Start Date",
+  format="yyyy-mm-dd",
+  #value=Sys.Date()
+  value="2023-09-01"
+)
+
+shiny::dateInput(
+  inputId="endDate",
+  label="End Date",
+  format="yyyy-mm-dd",
+  #value=Sys.Date()
+  value="2023-10-01"
+)
+shiny::numericInput(
+  inputId="nlimit",
+  label="Northern Limit",
+  value=45
+)
+shiny::numericInput(
+  inputId="slimit",
+  label="Southern Limit",
+  value=38
+)
+shiny::numericInput(
+  inputId="elimit",
+  label="Eastern Limit",
+  value=-65
+)
+shiny::numericInput(
+  inputId="wlimit",
+  label="Western Limit",
+  value=-75
+)
+```
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+
+### Map
+
+```{r}
+data=shiny::reactive({
+  download_DO(
+    startDate=input$startDate,
+    endDate=input$endDate,
+    minLon=input$wlimit,
+    maxLon=input$elimit,
+    minLat=input$slimit,
+    maxLat=input$nlimit
+  )
+})
+newdata=shiny::reactive({
+  average_DO(data(),time_bin=6)
+})
+
+normal=shiny::reactive({
+  subset(newdata(),newdata()$DO_mgl>=6)
+})
+low=shiny::reactive({
+  subset(newdata(),newdata()$DO_mgl<6&newdata()$DO_mgl>=4)
+})
+vlow=shiny::reactive({
+  subset(newdata(),newdata()$DO_mgl<4&newdata()$DO_mgl>=2)
+})
+crit=shiny::reactive({
+  subset(newdata(),newdata()$DO_mgl<2)
+})
+html_legend=paste0(
+    "<img src='",
+    gre_url,
+    "'> Normal (>6 mg/L)<br/><img src='",
+    gol_url,
+    "'> Low (4-6 mg/L) <br/><img src='",
+    ora_url,
+    "'> Very Low (2-4 mg/L)<br/><img src='",
+    red_url,
+    "'> Critical (<2 mg/L)"
+  )
+leaflet::renderLeaflet(
+  leaflet::leaflet() %>%
+    leaflet::addProviderTiles("Esri.WorldImagery")%>%
+    leaflet::setView((input$elimit+input$wlimit)/2, (input$nlimit+input$slimit)/2, zoom = 6) %>%
+    leaflet::addControl(html = html_legend, position = "bottomleft") %>%
+    leaflet::addMarkers(lng=normal()$lon,lat=normal()$lat,popup=paste0("Time: ",normal()$timestamp,"\n DO:",round(normal()$DO_mgl,1)," mg/L"),icon=greenIcon)%>%
+    leaflet::addMarkers(lng=low()$lon,lat=low()$lat,popup=paste0("Time: ",low()$timestamp,"\n DO:",round(low()$DO_mgl,1)," mg/L"),icon=goldIcon)%>%
+    leaflet::addMarkers(lng=vlow()$lon,lat=vlow()$lat,popup=paste0("Time: ",vlow()$timestamp,"\n DO:",round(vlow()$DO_mgl,1)," mg/L"),icon=orangeIcon)%>%
+    leaflet::addMarkers(lng=crit()$lon,lat=crit()$lat,popup=paste0("Time: ",crit()$timestamp,"\n DO:",round(crit()$DO_mgl,1)," mg/L"),icon=redIcon) %>%
+    leaflet::addSimpleGraticule(interval=1)
+)
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Bottom Temperature
+
+```{r}
+shiny::renderPlot(
+  plot(
+    newdata()$temperature~newdata()$timestamp,
+    pch=16,
+    col='red',
+    ylab="Bottom Temperature (C)",
+    xlab=""
+  )
+)
+```
+
+### Dissolved Oxygen
+
+```{r}
+shiny::renderPlot(
+  plot(
+    newdata()$DO_mgl~newdata()$timestamp,
+    pch=16,
+    col='blue',
+    ylab="Dissolved Oxygen (mg/L)",
+    xlab="",
+    ylim=c(0,12)
+  )
+)
+```
+
