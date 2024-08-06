@@ -17,6 +17,8 @@
 ##   northeastern United States
 ##
 ## ---------------------------
+#' @param bathy a bathymetric dataset. There is no default value. Providing a 
+#' dataset overrides the resolution parameter
 #' @param north the maximum latitude of the bounding box to plot in decimal 
 #' degrees. The default value is 47.
 #' @param south the minimum latitude of the bounding box to plot in decimal 
@@ -31,15 +33,18 @@
 #' @param shallowest.isobath the shallowest isobath to plot. Defaults to 0 m.
 #' @param isobath.step the isobath step to plot. Defaults to 100 m.
 
-marmap_plot=function(north=47,south=35,east=-56,west=-81,resolution=10,deepest.isobath=-1000,shallowest.isobath=0,isobath.step=100){
-  ## Download bathymetric data; use resolution = 10 for debugging
-  bath=marmap::getNOAA.bathy(
-    lon1=west,
-    lon2=east,
-    lat1=south,
-    lat2=north,
-    resolution=resolution
-  )
+marmap_plot=function(bathy=NA,north=47,south=35,east=-56,west=-81,resolution=10,deepest.isobath=-1000,shallowest.isobath=0,isobath.step=100){
+  
+  if(length(bathy)==1){
+    ## Download bathymetric data; use resolution = 10 for debugging
+    bathy=marmap::getNOAA.bathy(
+      lon1=west,
+      lon2=east,
+      lat1=south,
+      lat2=north,
+      resolution=resolution
+    )
+  }
   ## Create color ramp
   blues=c(
     "lightsteelblue4", 
@@ -48,8 +53,8 @@ marmap_plot=function(north=47,south=35,east=-56,west=-81,resolution=10,deepest.i
     "lightsteelblue1"
   )
   ## Plot the bathymetry
-  plot(
-    bath,
+  marmap::plot.bathy(
+    bathy,
     step=isobath.step,
     deepest.isobath=deepest.isobath,
     shallowest.isobath=shallowest.isobath,
@@ -58,8 +63,8 @@ marmap_plot=function(north=47,south=35,east=-56,west=-81,resolution=10,deepest.i
     land = TRUE, 
     lwd = 0.1,
     bpal = list(
-      c(0, max(bath), "gray"),
-      c(min(bath),0,blues)
+      c(0, max(bathy), "gray"),
+      c(min(bathy),0,blues)
     ),
     main="",
     ylim=c(south,north),
